@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Install dependencies
+        run: uv sync --extra dev
+      - name: Run unit tests
+        run: uv run pytest tests/unit
+
+  docker-integration:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Install dependencies
+        run: uv sync --extra dev
+      - name: Run Docker integration tests
+        run: uv run pytest tests/integration/test_docker_decompile.py
+
+  live-llm-e2e:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    env:
+      DECOMP_MCP_LLM_API_KEY: ${{ secrets.DECOMP_MCP_LLM_API_KEY }}
+      DECOMP_MCP_LLM_BASE_URL: ${{ secrets.DECOMP_MCP_LLM_BASE_URL }}
+      DECOMP_MCP_LLM_MODEL: ${{ vars.DECOMP_MCP_LLM_MODEL || 'gpt-5.4-mini' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Install dependencies
+        run: uv sync --extra dev
+      - name: Run live LLM E2E test
+        run: uv run pytest tests/integration/test_llm_e2e.py
+

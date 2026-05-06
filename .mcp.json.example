@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "decomp": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--project",
+        "/Users/me/decomp-mcp",
+        "decomp-mcp"
+      ]
+    }
+  }
+}

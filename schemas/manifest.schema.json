@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "decomp-mcp manifest",
+  "type": "object",
+  "required": ["schema_version", "artifact_id", "status", "input", "environment", "options", "paths", "stats"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_id": { "type": "string" },
+    "status": { "enum": ["ok", "partial", "failed"] },
+    "created_at": { "type": "string" },
+    "options_hash": { "type": "string" },
+    "input": {
+      "type": "object",
+      "required": ["path", "sha256", "size_bytes"],
+      "properties": {
+        "path": { "type": "string" },
+        "sha256": { "type": "string" },
+        "size_bytes": { "type": "integer" }
+      }
+    },
+    "environment": { "type": "object" },
+    "options": { "type": "object" },
+    "paths": { "type": "object" },
+    "stats": { "type": "object" },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  }
+}
+

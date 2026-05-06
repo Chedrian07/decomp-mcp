@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "decomp-mcp metadata artifact",
+  "type": "object",
+  "required": ["schema_version", "artifact_id"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_id": { "type": "string" },
+    "imports": { "type": "array" },
+    "exports": { "type": "array" },
+    "strings": { "type": "array" },
+    "sections": { "type": "array" },
+    "symbols": { "type": "array" }
+  },
+  "anyOf": [
+    { "required": ["imports"] },
+    { "required": ["exports"] },
+    { "required": ["strings"] },
+    { "required": ["sections"] },
+    { "required": ["symbols"] }
+  ]
+}

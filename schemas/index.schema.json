@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "decomp-mcp index",
+  "type": "object",
+  "required": ["schema_version", "artifact_id", "functions"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_id": { "type": "string" },
+    "functions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "address", "size", "file", "status", "is_auto_named", "is_thunk", "is_external"],
+        "properties": {
+          "name": { "type": "string" },
+          "address": { "type": "string" },
+          "size": { "type": "integer" },
+          "file": { "type": ["string", "null"] },
+          "status": { "type": "string" },
+          "is_auto_named": { "type": "boolean" },
+          "is_thunk": { "type": "boolean" },
+          "is_external": { "type": "boolean" },
+          "error_summary": { "type": "string" }
+        }
+      }
+    }
+  }
+}
+

@@ -1,0 +1,30 @@
+[project]
+name = "decomp-mcp"
+version = "0.1.0"
+description = "File-first Ghidra headless decompilation artifact MCP server"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp>=1.16.0",
+    "openai>=1.109.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[project.scripts]
+decomp-mcp = "decomp_mcp.__main__:main"
+decomp-mcp-worker = "decomp_mcp.worker_cli:main"
+decomp-mcp-direct-smoke = "decomp_mcp.clients.direct_mcp_smoke:main"
+decomp-mcp-llm-e2e = "decomp_mcp.clients.llm_e2e:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra"
