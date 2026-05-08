@@ -31,7 +31,7 @@ docker build --platform linux/amd64 -t decomp-mcp:0.1.0 .
 
 Build and run the image as `linux/amd64` because the pinned Ghidra release ships the headless decompiler native executable for Linux x86_64. The same image bundles jadx so both `decompile_binary` and `decompile_apk` work without a second image.
 
-The `JADX_ZIP_SHA256` build arg is a placeholder by default. Compute it once for the pinned `JADX_VERSION` (`curl -L https://github.com/skylot/jadx/releases/download/v${JADX_VERSION}/jadx-${JADX_VERSION}.zip | sha256sum`) and pass it via `--build-arg JADX_ZIP_SHA256=...` or replace the default in the Dockerfile.
+The pinned jadx release is also SHA256-verified during the image build. If you change `JADX_VERSION`, update `JADX_ZIP_SHA256` to the matching release zip hash.
 
 ## Client MCP Configuration
 

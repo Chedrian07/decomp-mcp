@@ -6,9 +6,7 @@ ARG GHIDRA_VERSION=12.0.4
 ARG GHIDRA_DATE=20260303
 ARG GHIDRA_ZIP_SHA256=c3b458661d69e26e203d739c0c82d143cc8a4a29d9e571f099c2cf4bda62a120
 ARG JADX_VERSION=1.5.4
-# Replace with the SHA256 of jadx-${JADX_VERSION}.zip from the official release.
-# Compute: curl -L https://github.com/skylot/jadx/releases/download/v${JADX_VERSION}/jadx-${JADX_VERSION}.zip | sha256sum
-ARG JADX_ZIP_SHA256=REPLACE_WITH_PINNED_SHA256
+ARG JADX_ZIP_SHA256=f6f0d51a4af63e430045aa64c4f110b89b53e82eb596ccb3a4bd3f865adec70e
 
 COPY --from=jdk /opt/java/openjdk /opt/java/openjdk
 
@@ -61,7 +59,7 @@ import urllib.request
 import zipfile
 
 version = os.environ.get("JADX_VERSION", "1.5.4")
-expected = os.environ.get("JADX_ZIP_SHA256", "REPLACE_WITH_PINNED_SHA256")
+expected = os.environ.get("JADX_ZIP_SHA256", "f6f0d51a4af63e430045aa64c4f110b89b53e82eb596ccb3a4bd3f865adec70e")
 url = f"https://github.com/skylot/jadx/releases/download/v{version}/jadx-{version}.zip"
 zip_path = "/tmp/jadx.zip"
 target_dir = "/opt/jadx"

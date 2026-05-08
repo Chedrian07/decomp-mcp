@@ -51,7 +51,8 @@ class JadxRunner:
         binary = resolve_binary_path(request.binary_path, self.base_input)
         binary_sha256 = sha256_file(binary)
         total_timeout_sec = request.effective_total_timeout_sec()
-        jadx_version = os.environ.get("JADX_VERSION", DEFAULT_JADX_VERSION)
+        jadx_bin = _jadx_bin_path()
+        jadx_version = _detect_jadx_version(jadx_bin)
         java_version = os.environ.get("JAVA_VERSION", platform.java_ver()[0] or "unknown")
 
         artifact_options = JadxArtifactOptions(
@@ -99,6 +100,7 @@ class JadxRunner:
                     started=started,
                     jadx_version=jadx_version,
                     java_version=java_version,
+                    jadx_bin=jadx_bin,
                 )
                 finalize_artifact(tmp_dir, final_dir, force=True)
                 return self._response(
@@ -148,6 +150,7 @@ class JadxRunner:
         started: float,
         jadx_version: str,
         java_version: str,
+        jadx_bin: Path,
     ) -> dict[str, Any]:
         self._prepare_artifact_dirs(tmp_dir)
         runner_log = tmp_dir / "logs" / "runner.log"
@@ -155,7 +158,6 @@ class JadxRunner:
         sources_dir = tmp_dir / "sources"
         resources_dir = tmp_dir / "resources"
 
-        jadx_bin = _jadx_bin_path()
         if not jadx_bin.exists():
             raise FileNotFoundError(f"jadx not found at {jadx_bin}")
 
@@ -508,36 +510,25 @@ def _enumerate_classes(
     classes_filter: str | None,
     max_classes: int | None,
 ) -> list[dict[str, Any]]:
-    if not sources_dir.exists():
-        return []
-
     pattern = re.compile(classes_filter) if classes_filter else None
     records: list[dict[str, Any]] = []
-    for java_path in sorted(sources_dir.rglob("*.java")):
+    seen: set[str] = set()
+    java_files = sorted(sources_dir.rglob("*.java")) if sources_dir.exists() else []
+    for java_path in java_files:
         rel = java_path.relative_to(sources_dir.parent)
         package_parts = java_path.parent.relative_to(sources_dir).parts
         package = ".".join(package_parts)
         stem = java_path.stem
-        is_inner = "$" in stem
-        is_anonymous = False
-        if is_inner:
-            inner_part = stem.split("$", 1)[1]
-            is_anonymous = inner_part.split("$", 1)[0].isdigit()
+        is_inner, is_anonymous = _class_name_flags(stem)
         qualified = f"{package}.{stem}" if package else stem
         if pattern is not None and not pattern.search(qualified):
             continue
+        seen.add(qualified)
         cls_failures = failures_by_class.get(qualified) or failures_by_class.get(stem)
         status = "ok"
         error_summary: str | None = None
         if cls_failures:
-            status = "partial"
-            for entry in cls_failures:
-                if entry.get("kind") == "class":
-                    status = "failed"
-                    error_summary = entry.get("message") or "class not loaded"
-                    break
-            if error_summary is None:
-                error_summary = "method decompilation errors"
+            status, error_summary = _status_from_class_failures(cls_failures)
 
         records.append(
             {
@@ -553,7 +544,47 @@ def _enumerate_classes(
         )
         if max_classes is not None and len(records) >= max_classes:
             break
+
+    for qualified, cls_failures in sorted(failures_by_class.items()):
+        if qualified in seen:
+            continue
+        if pattern is not None and not pattern.search(qualified):
+            continue
+        package, _, name = qualified.rpartition(".")
+        if not name:
+            name = qualified
+            package = ""
+        is_inner, is_anonymous = _class_name_flags(name)
+        status, error_summary = _status_from_class_failures(cls_failures)
+        records.append(
+            {
+                "name": name,
+                "package": package,
+                "file": None,
+                "size_bytes": 0,
+                "status": status,
+                "is_inner": is_inner,
+                "is_anonymous": is_anonymous,
+                "error_summary": error_summary,
+            }
+        )
     return records
+
+
+def _status_from_class_failures(cls_failures: list[dict[str, str]]) -> tuple[str, str]:
+    for entry in cls_failures:
+        if entry.get("kind") == "class":
+            return "failed", entry.get("message") or "class not loaded"
+    return "partial", "method decompilation errors"
+
+
+def _class_name_flags(name: str) -> tuple[bool, bool]:
+    is_inner = "$" in name
+    is_anonymous = False
+    if is_inner:
+        inner_part = name.split("$", 1)[1]
+        is_anonymous = inner_part.split("$", 1)[0].isdigit()
+    return is_inner, is_anonymous
 
 
 def _write_index_jsonl(path: Path, classes: list[dict[str, Any]]) -> None:
@@ -603,6 +634,27 @@ def _jadx_bin_path() -> Path:
     if discovered:
         return Path(discovered)
     return Path("/opt/jadx/bin/jadx")
+
+
+def _detect_jadx_version(jadx_bin: Path) -> str:
+    fallback = os.environ.get("JADX_VERSION", DEFAULT_JADX_VERSION)
+    if not jadx_bin.exists():
+        return fallback
+    try:
+        completed = subprocess.run(
+            [str(jadx_bin), "--version"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return fallback
+    text = (completed.stdout or completed.stderr).strip()
+    if not text:
+        return fallback
+    return text.splitlines()[0].strip() or fallback
 
 
 def _append_log(path: Path, text: str) -> None:

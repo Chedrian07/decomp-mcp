@@ -105,6 +105,35 @@ def test_jadx_runner_records_failures_from_log(tmp_path: Path, monkeypatch) -> N
     assert result["status"] == "partial"
 
 
+def test_jadx_runner_indexes_failed_class_without_source_file(tmp_path: Path, monkeypatch) -> None:
+    input_root = tmp_path / "input"
+    output_root = tmp_path / "output"
+    input_root.mkdir()
+    output_root.mkdir()
+    apk = input_root / "missing-class.apk"
+    apk.write_bytes(b"PK")
+    fake_jadx = _write_fake_jadx(
+        tmp_path,
+        log_lines=[
+            "ERROR - Class com.example.Missing was not loaded, DecodeException",
+        ],
+    )
+
+    monkeypatch.setenv("JADX_BIN", str(fake_jadx))
+    runner = JadxRunner(base_input=input_root, base_output=output_root)
+
+    result = runner.decompile(_request(binary_path="missing-class.apk"))
+    artifact_dir = Path(result["artifact_dir"])
+    index = json.loads((artifact_dir / "index.json").read_text())
+    missing = next(item for item in index["classes"] if item["name"] == "Missing")
+
+    assert missing["package"] == "com.example"
+    assert missing["file"] is None
+    assert missing["status"] == "failed"
+    assert result["status"] == "partial"
+    assert result["stats"]["failed"] == 1
+
+
 def test_jadx_runner_maps_response_to_host_output_root(tmp_path: Path, monkeypatch) -> None:
     input_root = tmp_path / "input"
     output_root = tmp_path / "output"
@@ -154,6 +183,10 @@ import pathlib
 import sys
 
 argv = sys.argv[1:]
+
+if "--version" in argv:
+    print("1.5.4")
+    raise SystemExit(0)
 
 
 def get_value(flag):
