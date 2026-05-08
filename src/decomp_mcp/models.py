@@ -20,6 +20,12 @@ PROFILE_FUNCTION_TIMEOUTS: dict[Profile, int] = {
     "deep": 120,
 }
 
+JADX_PROFILE_TIMEOUTS: dict[Profile, int] = {
+    "fast": 600,
+    "default": 1800,
+    "deep": 5400,
+}
+
 MAX_TOTAL_TIMEOUT_SEC = 24 * 60 * 60
 MAX_FUNCTION_TIMEOUT_SEC = 60 * 60
 
@@ -92,6 +98,63 @@ class ArtifactStats:
     strings_total: int = 0
     sections_total: int = 0
     symbols_total: int = 0
+    duration_sec: float = 0.0
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class JadxRequest:
+    binary_path: str
+    output_name: str | None = None
+    force: bool = False
+    profile: Profile = "default"
+    deobf: bool = True
+    show_bad_code: bool = False
+    include_resources: bool = False
+    classes_filter: str | None = None
+    max_classes: int | None = None
+    single_file: bool = False
+    total_timeout_sec: int | None = None
+
+    def normalized(self) -> dict[str, object]:
+        data = asdict(self)
+        data["profile"] = self.profile
+        return data
+
+    def effective_total_timeout_sec(self) -> int:
+        value = self.total_timeout_sec
+        if value is None:
+            value = JADX_PROFILE_TIMEOUTS[self.profile]
+        return _bounded_timeout(value, MAX_TOTAL_TIMEOUT_SEC)
+
+
+@dataclass(frozen=True)
+class JadxArtifactOptions:
+    jadx_version: str
+    decomp_mcp_version: str
+    java_version: str
+    profile: Profile
+    deobf: bool
+    show_bad_code: bool
+    include_resources: bool
+    classes_filter: str | None
+    max_classes: int | None
+    single_file: bool
+
+    def to_hash_payload(self) -> dict[str, object]:
+        payload = asdict(self)
+        payload["engine"] = "jadx"
+        return payload
+
+
+@dataclass(frozen=True)
+class JadxArtifactStats:
+    classes_total: int = 0
+    decompiled_ok: int = 0
+    failed: int = 0
+    sources_bytes: int = 0
     duration_sec: float = 0.0
 
     def to_dict(self) -> dict[str, object]:

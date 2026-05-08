@@ -7,7 +7,8 @@ import pytest
 
 from decomp_mcp.docker_worker import DockerWorkerRunner, allowed_input_roots, host_output_root, resolve_host_binary_path
 from decomp_mcp.ghidra_runner import decompile_binary
-from decomp_mcp.models import DecompileRequest
+from decomp_mcp.jadx_runner import decompile_apk
+from decomp_mcp.models import DecompileRequest, JadxRequest
 
 
 def test_docker_worker_mounts_host_binary_and_returns_worker_result(tmp_path: Path, monkeypatch) -> None:
@@ -32,10 +33,61 @@ def test_docker_worker_mounts_host_binary_and_returns_worker_result(tmp_path: Pa
     assert result["execution_mode"] == "docker-worker"
     assert result["host_binary_path"] == str(binary)
     assert capture["payload"]["binary_path"] == "/input/hello"
+    assert capture["payload"]["engine"] == "ghidra"
     assert f"{input_root}:/input:ro" in capture["argv"]
     assert f"{output_root}:/output:rw" in capture["argv"]
     assert "DECOMP_MCP_EXECUTION_MODE=direct" in capture["argv"]
     assert "decomp-mcp:test" in capture["argv"]
+
+
+def test_docker_worker_routes_jadx_engine_through_same_command(tmp_path: Path, monkeypatch) -> None:
+    input_root = tmp_path / "input"
+    output_root = tmp_path / "output"
+    input_root.mkdir()
+    output_root.mkdir()
+    apk = input_root / "hello.apk"
+    apk.write_bytes(b"PK\x03\x04 fake")
+    capture_path = tmp_path / "capture.json"
+    fake_docker = _write_fake_docker(tmp_path, capture_path)
+
+    monkeypatch.setenv("DECOMP_MCP_DOCKER_COMMAND", str(fake_docker))
+    monkeypatch.setenv("DECOMP_MCP_DOCKER_IMAGE", "decomp-mcp:test")
+    monkeypatch.setenv("DECOMP_MCP_HOST_OUTPUT_ROOT", str(output_root))
+    monkeypatch.setenv("DECOMP_MCP_ALLOWED_INPUT_ROOTS", str(input_root))
+
+    result = DockerWorkerRunner().decompile_apk(JadxRequest(binary_path=str(apk), total_timeout_sec=1))
+    capture = json.loads(capture_path.read_text(encoding="utf-8"))
+
+    assert result["status"] == "ok"
+    assert result["execution_mode"] == "docker-worker"
+    assert capture["payload"]["binary_path"] == "/input/hello.apk"
+    assert capture["payload"]["engine"] == "jadx"
+    assert capture["payload"]["deobf"] is True
+    assert f"{input_root}:/input:ro" in capture["argv"]
+    assert f"{output_root}:/output:rw" in capture["argv"]
+
+
+def test_decompile_apk_defaults_to_docker_worker(tmp_path: Path, monkeypatch) -> None:
+    input_root = tmp_path / "input"
+    output_root = tmp_path / "output"
+    input_root.mkdir()
+    output_root.mkdir()
+    apk = input_root / "hello.apk"
+    apk.write_bytes(b"PK")
+    capture_path = tmp_path / "capture.json"
+    fake_docker = _write_fake_docker(tmp_path, capture_path)
+
+    monkeypatch.delenv("DECOMP_MCP_EXECUTION_MODE", raising=False)
+    monkeypatch.setenv("DECOMP_MCP_DOCKER_COMMAND", str(fake_docker))
+    monkeypatch.setenv("DECOMP_MCP_HOST_OUTPUT_ROOT", str(output_root))
+    monkeypatch.setenv("DECOMP_MCP_ALLOWED_INPUT_ROOTS", str(input_root))
+
+    result = decompile_apk(binary_path=str(apk), total_timeout_sec=1)
+    capture = json.loads(capture_path.read_text(encoding="utf-8"))
+
+    assert result["status"] == "ok"
+    assert result["execution_mode"] == "docker-worker"
+    assert capture["payload"]["engine"] == "jadx"
 
 
 def test_decompile_binary_defaults_to_docker_worker(tmp_path: Path, monkeypatch) -> None:

@@ -1,8 +1,13 @@
 # decomp-mcp
 
-`decomp-mcp` is a file-first MCP server for Ghidra headless decompilation. It accepts one binary path, runs Ghidra, and writes reproducible decompilation artifacts under an output directory.
+`decomp-mcp` is a file-first MCP server for headless decompilation. It supports two engines bundled in the same Docker image:
 
-The MCP response never includes decompiled function bodies. It returns artifact paths, cache state, stats, and warnings so a coding agent can read only the files it needs.
+- **Ghidra** for native binaries (ELF, Mach-O, PE) — exposed via `decompile_binary`
+- **jadx** for Android/Java inputs (APK, DEX, JAR, AAR, AAB, CLASS) — exposed via `decompile_apk`
+
+Both tools accept a single input path, run the engine inside the worker, and write reproducible decompilation artifacts under an output directory.
+
+The MCP response never includes decompiled source bodies. It returns artifact paths, cache state, stats, and warnings so a coding agent can read only the files it needs.
 
 ## Recommended Deployment
 
@@ -24,7 +29,9 @@ This keeps the product as one MCP server while still avoiding a host Ghidra/JDK 
 docker build --platform linux/amd64 -t decomp-mcp:0.1.0 .
 ```
 
-Build and run the image as `linux/amd64` because the pinned Ghidra release ships the headless decompiler native executable for Linux x86_64.
+Build and run the image as `linux/amd64` because the pinned Ghidra release ships the headless decompiler native executable for Linux x86_64. The same image bundles jadx so both `decompile_binary` and `decompile_apk` work without a second image.
+
+The `JADX_ZIP_SHA256` build arg is a placeholder by default. Compute it once for the pinned `JADX_VERSION` (`curl -L https://github.com/skylot/jadx/releases/download/v${JADX_VERSION}/jadx-${JADX_VERSION}.zip | sha256sum`) and pass it via `--build-arg JADX_ZIP_SHA256=...` or replace the default in the Dockerfile.
 
 ## Client MCP Configuration
 
@@ -138,7 +145,7 @@ Each artifact contains:
 
 ### `decompile_binary`
 
-Creates or reuses a decompilation artifact.
+Runs Ghidra on a native binary (ELF/Mach-O/PE) and creates or reuses a decompilation artifact.
 
 Important parameters:
 
@@ -149,9 +156,27 @@ Important parameters:
 - `total_timeout_sec`: overall Ghidra subprocess timeout; defaults by profile
 - `function_timeout_sec`: per-function decompiler timeout; defaults by profile
 
+### `decompile_apk`
+
+Runs jadx on Android/Java inputs (APK/DEX/JAR/AAR/AAB/CLASS) and creates or reuses a decompilation artifact. Sources land under `sources/<pkg>/<Class>.java`.
+
+Important parameters:
+
+- `apk_path`: host path in `docker-worker` mode, `/input/...` path in container-server mode
+- `force`: regenerate an existing artifact
+- `profile`: `fast`, `default`, or `deep`; supplies the total timeout when `total_timeout_sec` is omitted (jadx defaults are larger than Ghidra's: 600/1800/5400)
+- `deobf`: enable jadx `--deobf` (default true). The CLI is always run with `--deobf-cfg-file-mode ignore` so any external `.jobf` mapping is ignored, keeping the cache key stable
+- `show_bad_code`: jadx `--show-bad-code`
+- `include_resources`: when false (default), runs with `--no-res`. When true, also writes `resources.json` and `strings.json`
+- `classes_filter`: regex applied to `package.ClassName`
+- `max_classes`: cap the number of indexed classes
+- `single_file`: also write `combined/all.java`
+
+The response shape is identical to `decompile_binary` (`status`, `artifact_id`, `artifact_dir`, `manifest_path`, `index_path`, `binary_sha256`, `cache_hit`, `stats`, `warnings`). Class-level details live in `index.json`/`index.jsonl` under a `classes` array. See `docs/jadx-artifact-format.md`.
+
 ### `clear_cache`
 
-Deletes failed artifacts or all artifacts under the active artifact output root.
+Deletes failed artifacts or all artifacts under the active artifact output root. Engine-agnostic — Ghidra and jadx artifacts share the same artifact root and cache rules.
 
 ## No Filesystem Companion Required
 

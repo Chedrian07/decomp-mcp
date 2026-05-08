@@ -41,3 +41,27 @@ def test_manifest_schema_accepts_current_stats_shape() -> None:
         schema,
     )
 
+
+def test_jadx_index_schema_accepts_classes_array() -> None:
+    schema = json.loads(Path("schemas/jadx-index.schema.json").read_text(encoding="utf-8"))
+    validate(
+        {
+            "schema_version": "1.0",
+            "artifact_id": "sample",
+            "engine": "jadx",
+            "classes": [
+                {
+                    "name": "MainActivity",
+                    "package": "com.example",
+                    "file": "sources/com/example/MainActivity.java",
+                    "size_bytes": 1234,
+                    "status": "ok",
+                    "is_inner": False,
+                    "is_anonymous": False,
+                    "error_summary": None,
+                }
+            ],
+        },
+        schema,
+    )
+

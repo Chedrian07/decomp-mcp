@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .hashing import sha256_file
-from .models import DecompileRequest
+from .models import DecompileRequest, JadxRequest
 from .paths import _is_relative_to
 
 
@@ -25,7 +25,29 @@ class DockerWorkerRunner:
         self.allowed_roots = allowed_input_roots()
 
     def decompile(self, request: DecompileRequest) -> dict[str, Any]:
-        binary = resolve_host_binary_path(request.binary_path, self.allowed_roots)
+        return self._run_engine(
+            engine="ghidra",
+            request_payload=request.normalized(),
+            host_binary_path=request.binary_path,
+            total_timeout_sec=request.effective_total_timeout_sec(),
+        )
+
+    def decompile_apk(self, request: JadxRequest) -> dict[str, Any]:
+        return self._run_engine(
+            engine="jadx",
+            request_payload=request.normalized(),
+            host_binary_path=request.binary_path,
+            total_timeout_sec=request.effective_total_timeout_sec(),
+        )
+
+    def _run_engine(
+        self,
+        engine: str,
+        request_payload: dict[str, Any],
+        host_binary_path: str,
+        total_timeout_sec: int,
+    ) -> dict[str, Any]:
+        binary = resolve_host_binary_path(host_binary_path, self.allowed_roots)
         self.output_root.mkdir(parents=True, exist_ok=True)
 
         if shutil.which(self.docker) is None:
@@ -36,13 +58,14 @@ class DockerWorkerRunner:
             )
 
         container_binary_path = Path("/input") / binary.name
-        worker_request = request.normalized()
+        worker_request = dict(request_payload)
         worker_request["binary_path"] = str(container_binary_path)
         if worker_request.get("output_name") is None:
             worker_request["output_name"] = binary.stem
+        worker_request["engine"] = engine
 
         command = self._docker_command(binary)
-        timeout = request.effective_total_timeout_sec() + int(os.environ.get("DECOMP_MCP_DOCKER_STARTUP_TIMEOUT_SEC", "120"))
+        timeout = total_timeout_sec + int(os.environ.get("DECOMP_MCP_DOCKER_STARTUP_TIMEOUT_SEC", "120"))
         try:
             completed = subprocess.run(
                 command,

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "decomp-mcp jadx index",
+  "type": "object",
+  "required": ["schema_version", "artifact_id", "engine", "classes"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_id": { "type": "string" },
+    "engine": { "const": "jadx" },
+    "classes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "package", "file", "size_bytes", "status", "is_inner", "is_anonymous"],
+        "properties": {
+          "name": { "type": "string" },
+          "package": { "type": "string" },
+          "file": { "type": ["string", "null"] },
+          "size_bytes": { "type": "integer" },
+          "status": { "type": "string" },
+          "is_inner": { "type": "boolean" },
+          "is_anonymous": { "type": "boolean" },
+          "error_summary": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

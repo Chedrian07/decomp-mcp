@@ -3,15 +3,25 @@ from __future__ import annotations
 import json
 import sys
 
-from .ghidra_runner import GhidraRunner
-from .models import DecompileRequest
-
 
 def main() -> None:
     try:
         payload = json.load(sys.stdin)
-        request = DecompileRequest(**payload)
-        result = GhidraRunner().decompile(request)
+        engine = payload.pop("engine", "ghidra")
+
+        if engine == "jadx":
+            from .jadx_runner import JadxRunner
+            from .models import JadxRequest
+
+            result = JadxRunner().decompile(JadxRequest(**payload))
+        elif engine == "ghidra":
+            from .ghidra_runner import GhidraRunner
+            from .models import DecompileRequest
+
+            result = GhidraRunner().decompile(DecompileRequest(**payload))
+        else:
+            raise ValueError(f"unknown engine: {engine!r}")
+
         json.dump(result, sys.stdout)
         sys.stdout.write("\n")
     except Exception as exc:
